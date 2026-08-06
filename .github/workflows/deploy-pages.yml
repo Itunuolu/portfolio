@@ -1,0 +1,67 @@
+name: Deploy Portfolio to GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/deploy-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+  actions: write
+
+concurrency:
+  group: portfolio-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Copy the approved portfolio
+        run: |
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/Itunuolu/cali-academy-landing-page/main/portfolio/index.html" \
+            --output index.html
+          touch .nojekyll
+          cat > README.md <<'EOF'
+          # Business Analyst & AI Engineering Portfolio
+
+          Live website: https://itunuolu.github.io/portfolio/
+          EOF
+
+      - name: Save portfolio source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html .nojekyll README.md
+          git diff --cached --quiet || git commit -m "Publish Business Analyst and AI Engineering portfolio"
+          git push
+
+      - name: Enable GitHub Pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/pages" -f build_type=workflow >/dev/null 2>&1 || \
+          gh api --method PUT "repos/${GITHUB_REPOSITORY}/pages" -f build_type=workflow >/dev/null 2>&1 || true
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload portfolio
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy portfolio
+        id: deployment
+        uses: actions/deploy-pages@v4
