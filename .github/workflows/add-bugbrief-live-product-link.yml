@@ -1,0 +1,59 @@
+name: Add BugBrief Live Product Link
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/add-bugbrief-live-product-link.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-portfolio:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout all branches
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update main and gh-pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          patch_branch() {
+            branch="$1"
+            git checkout "$branch"
+            python - <<'PY'
+          from pathlib import Path
+
+          path = Path("index.html")
+          text = path.read_text(encoding="utf-8")
+          store_url = "https://chromewebstore.google.com/detail/bugbrief-ai/haefpfeecehkcgaeiaefeneadelknfmo"
+
+          if store_url in text:
+              print("Chrome Web Store link already present")
+          else:
+              old = '<div class="case-actions"><a class="btn dark" href="https://github.com/Itunuolu/Bugbrief.ai" target="_blank" rel="noopener">Repository ↗</a></div>'
+              new = '<div class="case-actions"><a class="btn dark" href="' + store_url + '" target="_blank" rel="noopener">View on Chrome Web Store ↗</a><a class="btn" href="https://github.com/Itunuolu/Bugbrief.ai" target="_blank" rel="noopener">Repository ↗</a></div>'
+              if old not in text:
+                  raise SystemExit("Expected BugBrief action block was not found; no changes made.")
+              text = text.replace(old, new, 1)
+              path.write_text(text, encoding="utf-8")
+              print("Added Chrome Web Store link")
+          PY
+            if ! git diff --quiet -- index.html; then
+              git add index.html
+              git commit -m "Add BugBrief Chrome Web Store live product link"
+              git push origin "$branch"
+            fi
+          }
+
+          patch_branch main
+          git fetch origin gh-pages:gh-pages
+          patch_branch gh-pages
