@@ -1,0 +1,50 @@
+name: Show BugBrief Live Product Button
+
+on:
+  push:
+    paths:
+      - '.github/workflows/add-visible-bugbrief-live-product.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update-portfolio:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add visible button to main and gh-pages
+        shell: bash
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main gh-pages
+
+          for BRANCH in main gh-pages; do
+            git checkout "$BRANCH"
+            python - <<'PY'
+          from pathlib import Path
+
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+          marker = 'bugbrief-visible-live-product'
+          old = '<li>Privacy and AI workflow considerations</li></ul><button class="toggle" aria-expanded="false">Read case study <span>→</span></button>'
+          new = '<li>Privacy and AI workflow considerations</li></ul><div class="case-actions bugbrief-visible-live-product" style="display:flex;gap:10px;flex-wrap:wrap;margin:0 0 20px"><a class="btn dark" href="https://chromewebstore.google.com/detail/bugbrief-ai/haefpfeecehkcgaeiaefeneadelknfmo" target="_blank" rel="noopener">View Live Product ↗</a></div><button class="toggle" aria-expanded="false">Read case study <span>→</span></button>'
+
+          if marker not in text:
+              if old not in text:
+                  raise SystemExit('Expected BugBrief card pattern not found')
+              text = text.replace(old, new, 1)
+              path.write_text(text, encoding='utf-8')
+          PY
+            git add index.html
+            if ! git diff --cached --quiet; then
+              git commit -m "Show BugBrief live product button on card"
+              git push origin "$BRANCH"
+            fi
+          done
